@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>محاكاة قشط ألواح الـ PCB النحاسية الخضراء بالأجنة</title>
+    <!-- Tailwind CSS لتنسيق الواجهات -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js والتحكم بالكاميرا -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0c0d10;
+            color: #c5c6c7;
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="flex flex-col lg:flex-row h-screen w-screen">
+
+    <!-- لوحة التحكم الجانبية لعملية قشط النحاس -->
+    <div class="w-full lg:w-96 bg-[#111215] border-b lg:border-b-0 lg:border-l border-zinc-800 p-6 flex flex-col justify-between overflow-y-auto z-10 shadow-2xl shrink-0">
+        <div>
+            <!-- الترويسة -->
+            <div class="mb-5">
+                <span class="px-2.5 py-1 text-[10px] font-bold uppercase bg-green-600 rounded-full text-white tracking-wider">قشط النحاس بالأجنة | Green PCB</span>
+                <h1 class="text-xl font-black mt-2 tracking-tight text-white">منصة تصنيع الـ PCB</h1>
+                <p class="text-xs text-zinc-400 mt-1">قشط النحاس بالكامل بالأجنة لكشف البلاستيك العازل الرمادي بالأسفل</p>
+            </div>
+
+            <hr class="border-zinc-800 my-4" />
+
+            <!-- اختيار مسارات الحفر التفاعلية -->
+            <div class="space-y-3 mb-5">
+                <h3 class="text-xs font-bold text-zinc-400 uppercase tracking-wider">اختر مسار التقطيع المطلوب:</h3>
+                <div class="grid grid-cols-1 gap-2">
+                    <button id="path-ic" class="w-full bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 text-xs py-2.5 px-3 rounded-lg transition text-right flex justify-between items-center">
+                        <span>1. مسار الدائرة المتكاملة (IC Circuit)</span>
+                        <span id="badge-ic" class="text-[10px] font-bold bg-emerald-800 px-1.5 py-0.5 rounded text-white">نشط</span>
+                    </button>
+                    <button id="path-coil" class="w-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs py-2.5 px-3 rounded-lg transition text-right flex justify-between items-center">
+                        <span>2. الملف المربع (Square Coil)</span>
+                        <span id="badge-coil" class="text-[10px] font-bold bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">خامل</span>
+                    </button>
+                    <button id="path-zigzag" class="w-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs py-2.5 px-3 rounded-lg transition text-right flex justify-between items-center">
+                        <span>3. شبكة الاختبار المتعرجة (Zigzag Grid)</span>
+                        <span id="badge-zigzag" class="text-[10px] font-bold bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400">خامل</span>
+                    </button>
+                </div>
+            </div>
+
+            <hr class="border-zinc-800 my-4" />
+
+            <!-- العمليات التفاعلية -->
+            <div class="space-y-4">
+                <button id="btn-probe" class="w-full bg-zinc-850 hover:bg-zinc-800 border border-zinc-700/50 text-white font-medium py-2 px-4 rounded-lg transition text-sm flex items-center justify-center gap-2">
+                    <span>📏</span>
+                    <span>معايرة فحص السطح (Z-Probe)</span>
+                </button>
+
+                <button id="btn-simulate" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 px-4 rounded-lg transition duration-200 text-sm flex items-center justify-center gap-2">
+                    <span id="simulate-icon">▶</span>
+                    <span id="simulate-text">بدء عملية القشط بالأجنة</span>
+                </button>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-autorotate" class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[11px] py-2 px-3 rounded-lg text-zinc-300 transition">
+                        🔄 تدوير تلقائي: <span id="autorotate-status">مفعّل</span>
+                    </button>
+                    <button id="btn-reset" class="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[11px] py-2 px-3 rounded-lg text-zinc-300 transition">
+                        🎯 تصفير الرؤية
+                    </button>
+                </div>
+                
+                <button id="btn-clear-path" class="w-full bg-red-950/30 hover:bg-red-950/50 border border-red-900/40 text-red-300 text-xs py-2 px-3 rounded-lg transition">
+                    🔄 إعادة لوحة النحاس خضراء جديدة
+                </button>
+            </div>
+
+            <!-- شاشة المراقبة الرقمية -->
+            <div class="mt-5 bg-zinc-900/60 rounded-xl p-4 border border-zinc-800/80">
+                <h4 class="text-xs font-bold text-zinc-500 uppercase mb-3">حالة الميكانيكا الحالية</h4>
+                <div class="space-y-2 text-xs">
+                    <div class="flex justify-between items-center">
+                        <span class="text-zinc-400">حالة التماس (Z-Probe):</span>
+                        <span id="probe-status" class="px-2 py-0.5 rounded font-bold bg-zinc-800 text-zinc-400">جاهز للمعايرة</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-zinc-400">سرعة دوران الأجنة:</span>
+                        <span id="spindle-speed" class="font-mono text-zinc-300">0 RPM</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-zinc-400">طبقة الأساس المكشوفة:</span>
+                        <span class="text-gray-400 font-semibold">بلاستيك رمادي FR4</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- قيم الإحداثيات اللحظية -->
+            <div class="mt-4 bg-zinc-950/60 rounded-xl p-4 border border-zinc-900">
+                <h4 class="text-[10px] font-bold text-zinc-500 uppercase mb-2">إحداثيات حركة الأجنة (ملم)</h4>
+                <div class="grid grid-cols-3 gap-2 text-center">
+                    <div class="bg-zinc-900 p-2 rounded border border-zinc-800">
+                        <div class="text-[9px] text-red-400 font-bold uppercase">X (العرض)</div>
+                        <div id="val-x" class="font-mono text-xs text-white mt-1">0.00</div>
+                    </div>
+                    <div class="bg-zinc-900 p-2 rounded border border-zinc-800">
+                        <div class="text-[9px] text-green-400 font-bold uppercase">Y (العمق)</div>
+                        <div id="val-y" class="font-mono text-xs text-white mt-1">0.00</div>
+                    </div>
+                    <div class="bg-zinc-900 p-2 rounded border border-zinc-800">
+                        <div class="text-[9px] text-blue-400 font-bold uppercase">Z (الارتفاع)</div>
+                        <div id="val-z" class="font-mono text-xs text-white mt-1">0.00</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- الملاحظات الهندسية لعملية القشط -->
+        <div class="mt-6 border-t border-zinc-850 pt-3 text-[10px] text-zinc-500 space-y-1">
+            <p class="text-zinc-400 font-semibold">• ميكانيكا قشط الـ PCB:</p>
+            <p>1. رأس الأجنة الحاد (V-Bit) يزيل طبقة النحاس الخضراء ميكانيكياً ليكشف طبقة البلاستيك الرمادية العازلة بالأسفل.</p>
+        </div>
+    </div>
+
+    <!-- نافذة العرض ثلاثي الأبعاد -->
+    <div class="flex-1 relative h-[65vh] lg:h-full">
+        <div id="canvas-container"></div>
+        <div class="absolute top-4 right-4 bg-zinc-900/90 border border-zinc-800 rounded-lg py-2 px-3 text-xs text-zinc-400 pointer-events-none">
+            اللوح غير المقشوط <span class="text-[#27ae60]">■</span> | النحاس المقشوط (بلاستيك رمادي) <span class="text-[#7f8c8d]">■</span>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. الإعلان عن متغيرات الحالة العامة أولاً لضمان عدم حدوث ReferenceError ---
+       // --- 1. الإعلان عن متغيرات الحالة العامة أولاً لضمان عدم حدوث ReferenceError ---
+let isSimulating = false;
+let isProbing = false;
+let probeStep = 0;
+let currentSegment = 0;
+let feedSpeedFactor = 0.07; 
+let lastTipPos = null;
+
+// متغيرات تتبع حركة محاور القشط الفعلية بدقة ميكرونية
+let lastTrackedX = null;
+let lastTrackedZ = null;
+
+// مسارات G-Code المحددة مسبقاً
+const pathIC = [
+    { type: 'G0', x: -50, z: -25, y: 15 }, 
+    { type: 'G1', x: -50, z: -25, y: -2.5 }, 
+    { type: 'G1', x: -10, z: -25, y: -2.5 }, 
+    { type: 'G1', x: -10, z: 15, y: -2.5 },
+    { type: 'G0', x: -10, z: 15, y: 15 }, 
+
+    // Pad 1
+    { type: 'G0', x: 20, z: -20, y: 15 },
+    { type: 'G1', x: 20, z: -20, y: -2.5 },
+    { type: 'G1', x: 35, z: -20, y: -2.5 },
+    { type: 'G1', x: 35, z: -10, y: -2.5 },
+    { type: 'G1', x: 20, z: -10, y: -2.5 },
+    { type: 'G1', x: 20, z: -20, y: -2.5 },
+    { type: 'G0', x: 20, z: -20, y: 15 },
+
+    // توصيل مسار
+    { type: 'G0', x: 27.5, z: -15, y: 15 },
+    { type: 'G1', x: 27.5, z: -15, y: -2.5 },
+    { type: 'G1', x: -10, z: -15, y: -2.5 },
+    { type: 'G0', x: -10, z: -15, y: 15 },
+
+    // Pad 2
+    { type: 'G0', x: 20, z: 10, y: 15 },
+    { type: 'G1', x: 20, z: 10, y: -2.5 },
+    { type: 'G1', x: 35, z: 10, y: -2.5 },
+    { type: 'G1', x: 35, z: 20, y: -2.5 },
+    { type: 'G1', x: 20, z: 20, y: -2.5 },
+    { type: 'G1', x: 20, z: 10, y: -2.5 },
+    { type: 'G0', x: 20, z: 10, y: 15 }
+];
+
+const pathCoil = [
+    { type: 'G0', x: -60, z: -40, y: 15 },
+    { type: 'G1', x: -60, z: -40, y: -2.5 },
+    { type: 'G1', x: 60, z: -40, y: -2.5 },
+    { type: 'G1', x: 60, z: 40, y: -2.5 },
+    { type: 'G1', x: -50, z: 40, y: -2.5 },
+    { type: 'G1', x: -50, z: -30, y: -2.5 },
+    { type: 'G1', x: 40, z: -30, y: -2.5 },
+    { type: 'G1', x: 40, z: 25, y: -2.5 },
+    { type: 'G1', x: -30, z: 25, y: -2.5 },
+    { type: 'G1', x: -30, z: -15, y: -2.5 },
+    { type: 'G1', x: 20, z: -15, y: -2.5 },
+    { type: 'G1', x: 20, z: 10, y: -2.5 },
+    { type: 'G1', x: -10, z: 10, y: -2.5 },
+    { type: 'G1', x: -10, z: -2, y: -2.5 },
+    { type: 'G1', x: 5, z: -2, y: -2.5 },
+    { type: 'G0', x: 5, z: -2, y: 15 }
+];
+
+const pathZigzag = [
+    { type: 'G0', x: -60, z: -35, y: 15 },
+    { type: 'G1', x: -60, z: -35, y: -2.5 },
+    { type: 'G1', x: -60, z: 35, y: -2.5 },
+    { type: 'G1', x: -40, z: 35, y: -2.5 },
+    { type: 'G1', x: -40, z: -35, y: -2.5 },
+    { type: 'G1', x: -20, z: -35, y: -2.5 },
+    { type: 'G1', x: -20, z: 35, y: -2.5 },
+    { type: 'G1', x: 0, z: 35, y: -2.5 },
+    { type: 'G1', x: 0, z: -35, y: -2.5 },
+    { type: 'G1', x: 20, z: -35, y: -2.5 },
+    { type: 'G1', x: 20, z: 35, y: -2.5 },
+    { type: 'G1', x: 40, z: 35, y: -2.5 },
+    { type: 'G1', x: 40, z: -35, y: -2.5 },
+    { type: 'G1', x: 60, z: -35, y: -2.5 },
+    { type: 'G1', x: 60, z: 35, y: -2.5 },
+    { type: 'G0', x: 60, z: 35, y: 15 }
+];
+
+let activeGcodeProgram = pathIC;
+
+        // --- 2. إعداد المشهد والبيئة ثلاثية الأبعاد ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0c0d10);
+
+        // زاوية كاميرا مائلة إيزومترية قريبة لرؤية اللوح بوضوح شديد
+        const camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 1, 2000);
+        camera.position.set(220, 180, 220);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.03; 
+        controls.autoRotate = true;
+        controls.autoRotateSpeed = 0.3;
+
+        // --- 3. الإضاءة ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+        scene.add(ambientLight);
+
+        const topLight = new THREE.DirectionalLight(0xffffff, 0.85);
+        topLight.position.set(50, 250, 50);
+        scene.add(topLight);
+
+        const greenHighlight = new THREE.DirectionalLight(0x27ae60, 0.25); // عاكس للون لوح النحاس الأخضر
+        greenHighlight.position.set(-100, 100, -100);
+        scene.add(greenHighlight);
+
+        // شبكة القاعدة الخلفية للمكنة
+        const gridHelper = new THREE.GridHelper(450, 45, 0x2c2d30, 0x1b1c1e);
+        gridHelper.position.y = -85;
+        scene.add(gridHelper);
+
+        // --- 4. بناء هيكل المكنة عالي الصلابة وقصير المدى (Low-Profile CNC) ---
+        const W = 300; // العرض X
+        const H = 130; // الارتفاع القصير Y لزيادة صلابة المكنة ومنع تذبذب الأجنة
+        const D = 300; // العمق Z
+
+        // طاولة التضحية (MDF Wasteboard)
+        const wasteboardGeo = new THREE.BoxGeometry(W - 40, 10, D - 40);
+        const wasteboardMat = new THREE.MeshStandardMaterial({ color: 0xcd853f, roughness: 0.95 });
+        const wasteboard = new THREE.Mesh(wasteboardGeo, wasteboardMat);
+        wasteboard.position.y = -85 + 5;
+        scene.add(wasteboard);
+
+        // أعمدة الدعم الجانبية للألومنيوم
+        const pillarGeo = new THREE.BoxGeometry(30, H, 30);
+        const aluminumMat = new THREE.MeshStandardMaterial({ color: 0x95a5a6, metalness: 0.85, roughness: 0.2 });
+
+        const corners = [
+            [-W/2 + 15, -D/2 + 15],
+            [W/2 - 15, -D/2 + 15],
+            [-W/2 + 15, D/2 - 15],
+            [W/2 - 15, D/2 - 15]
+        ];
+        corners.forEach(pos => {
+            const pillar = new THREE.Mesh(pillarGeo, aluminumMat);
+            pillar.position.set(pos[0], -85 + H/2, pos[1]);
+            scene.add(pillar);
+        });
+
+        // سكات المحور Y الأرضية والبرغي الحلزوني للمحرك السفلي
+        const railMat = new THREE.MeshStandardMaterial({ color: 0xbdc3c7, metalness: 0.95, roughness: 0.05 });
+        const screwMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, metalness: 0.9, roughness: 0.15 });
+
+        const railYGeo = new THREE.CylinderGeometry(5, 5, D - 40, 16);
+        railYGeo.rotateX(Math.PI / 2);
+
+        const railYLeft = new THREE.Mesh(railYGeo, railMat);
+        railYLeft.position.set(-W/2 + 50, -80 + 15, 0);
+        scene.add(railYLeft);
+
+        const railYRight = new THREE.Mesh(railYGeo, railMat);
+        railYRight.position.set(W/2 - 50, -80 + 15, 0);
+        scene.add(railYRight);
+
+        const screwYGeo = new THREE.CylinderGeometry(6, 6, D - 40, 16);
+        screwYGeo.rotateX(Math.PI / 2);
+        const screwY = new THREE.Mesh(screwYGeo, screwMat);
+        screwY.position.set(0, -80 + 15, 0);
+        scene.add(screwY);
+
+        // --- 5. تصميم لوح الـ PCB الاحترافي ذو الطبقتين (بلاستيك رمادي + لوح أخضر) ---
+        const pcbGroup = new THREE.Group();
+        pcbGroup.position.set(0, -85 + 10, 0); 
+
+        // أ) طبقة لوح البلاستيك العازل السفلي (FR4 Substrate) - لون رمادي ميتاليك/بلاستيكي بسماكة 1.6 ملم
+        const fr4BaseGeo = new THREE.BoxGeometry(160, 1.6, 100);
+        const fr4Mat = new THREE.MeshStandardMaterial({ color: 0x7f8c8d, roughness: 0.8 }); // بلاستيك عازل رمادي
+        const fr4Mesh = new THREE.Mesh(fr4BaseGeo, fr4Mat);
+        fr4Mesh.position.y = 0.8;
+        pcbGroup.add(fr4Mesh);
+
+        // ب) طبقة رقاقة النحاس الخضراء بالكامل (Green Mask Layer) - بسماكة 0.2 ملم مكسوة فوق البلاستيك تماماً
+        const copperFoilGeo = new THREE.BoxGeometry(160, 0.2, 100);
+        const copperFoilMat = new THREE.MeshStandardMaterial({ color: 0x27ae60, metalness: 0.5, roughness: 0.2 }); // اللوحة كلها خضراء
+        const copperFoilMesh = new THREE.Mesh(copperFoilGeo, copperFoilMat);
+        copperFoilMesh.position.y = 1.6 + 0.1; // تقع فوق البلاستيك الرمادي مباشرة
+        pcbGroup.add(copperFoilMesh);
+
+        // ج) مشابك تثبيت اللوح على طاولة العمل لمنع الحركة
+        const clampGeo = new THREE.BoxGeometry(15, 5, 20);
+        const clampMat = new THREE.MeshStandardMaterial({ color: 0x2c3e50, metalness: 0.8, roughness: 0.3 });
+        const clampPositions = [
+            [-70, 2, -42], [70, 2, -42], [-70, 2, 42], [70, 2, 42]
+        ];
+        clampPositions.forEach(pos => {
+            const clamp = new THREE.Mesh(clampGeo, clampMat);
+            clamp.position.set(pos[0], pos[1], pos[2]);
+            pcbGroup.add(clamp);
+        });
+
+        // د) مسبار التماس النحاسي اللامع لمعايرة الصفر (Z-Probe Plate)
+        const probePlateGeo = new THREE.CylinderGeometry(8, 8, 1.5, 24);
+        const probePlateMat = new THREE.MeshStandardMaterial({ color: 0xf1c40f, metalness: 0.95, roughness: 0.1 });
+        const probePlate = new THREE.Mesh(probePlateGeo, probePlateMat);
+        probePlate.position.set(50, 1.6 + 0.75, 35);
+        pcbGroup.add(probePlate);
+
+        scene.add(pcbGroup);
+
+        // --- 6. الجسر العريض المتحرك للمحور Y (Y-Gantry Bridge) ---
+        const gantryGroup = new THREE.Group();
+        scene.add(gantryGroup);
+
+        // الأرجل الميكانيكية للتحريك
+        const legGeo = new THREE.BoxGeometry(20, 80, 50);
+        const legLeft = new THREE.Mesh(legGeo, aluminumMat);
+        legLeft.position.set(-W/2 + 50, -85 + 40, 0);
+        gantryGroup.add(legLeft);
+
+        const legRight = new THREE.Mesh(legGeo, aluminumMat);
+        legRight.position.set(W/2 - 50, -85 + 40, 0);
+        gantryGroup.add(legRight);
+
+        // عارضة المحور X
+        const gantryBridgeGeo = new THREE.BoxGeometry(W - 120, 25, 15);
+        const gantryBridge = new THREE.Mesh(gantryBridgeGeo, aluminumMat);
+        gantryBridge.position.set(0, -85 + 70, 0);
+        gantryGroup.add(gantryBridge);
+
+        // قضبان وسكة المحور X
+        const railXGeo = new THREE.CylinderGeometry(4, 4, W - 120, 16);
+        railXGeo.rotateZ(Math.PI / 2);
+
+        const railXTop = new THREE.Mesh(railXGeo, railMat);
+        railXTop.position.set(0, -85 + 78, 10);
+        gantryGroup.add(railXTop);
+
+        const railXBottom = new THREE.Mesh(railXGeo, railMat);
+        railXBottom.position.set(0, -85 + 62, 10);
+        gantryGroup.add(railXBottom);
+
+        const screwXGeo = new THREE.CylinderGeometry(4.5, 4.5, W - 120, 16);
+        screwXGeo.rotateZ(Math.PI / 2);
+        const screwX = new THREE.Mesh(screwXGeo, screwMat);
+        screwX.position.set(0, -85 + 70, 10);
+        gantryGroup.add(screwX);
+
+        // --- 7. العربة المتحركة للمحور X (X-Carriage) ومنزلق محور Z ---
+        const carriageGroup = new THREE.Group();
+        gantryGroup.add(carriageGroup);
+
+        const platformGeo = new THREE.BoxGeometry(55, 50, 12);
+        const platformMat = new THREE.MeshStandardMaterial({ color: 0xd35400, roughness: 0.5 });
+        const platform = new THREE.Mesh(platformGeo, platformMat);
+        platform.position.set(0, -85 + 70, 18);
+        carriageGroup.add(platform);
+
+        // منزلق سكة Z الرأسي
+        const railZGeo = new THREE.CylinderGeometry(3, 3, 50, 16);
+        const railZLeft = new THREE.Mesh(railZGeo, railMat);
+        railZLeft.position.set(-16, -85 + 70, 26);
+        carriageGroup.add(railZLeft);
+
+        const railZRight = new THREE.Mesh(railZGeo, railMat);
+        railZRight.position.set(18, -85 + 70, 26);
+        carriageGroup.add(railZRight);
+
+        // --- 8. وحدة محرك المغزل وأجنة القشط الدقيقة (ER11 Collet + Sharp V-Bit) ---
+        const spindleGroup = new THREE.Group();
+        carriageGroup.add(spindleGroup);
+
+        const mountGeo = new THREE.BoxGeometry(30, 20, 12);
+        const mount = new THREE.Mesh(mountGeo, aluminumMat);
+        mount.position.set(0, -85 + 70, 34);
+        spindleGroup.add(mount);
+
+        // محرك المغزل (Cyan)
+        const spindleGeo = new THREE.CylinderGeometry(10, 10, 40, 24);
+        const spindleMat = new THREE.MeshStandardMaterial({ color: 0x00cec9, metalness: 0.6, roughness: 0.3 });
+        const spindle = new THREE.Mesh(spindleGeo, spindleMat);
+        spindle.position.set(0, -85 + 70, 42);
+        spindleGroup.add(spindle);
+
+        // ظرف قمط الأجنة الفولاذي (ER11 Collet Chuck)
+        const colletGeo = new THREE.CylinderGeometry(5, 5, 10, 16);
+        const colletMat = new THREE.MeshStandardMaterial({ color: 0xbdc3c7, metalness: 0.95, roughness: 0.05 });
+        const collet = new THREE.Mesh(colletGeo, colletMat);
+        collet.position.set(0, -85 + 45, 42);
+        spindleGroup.add(collet);
+
+        // أجنة القشط المخروطية المستدقة والحادة (Engraving V-Bit)
+        const vBitGeo = new THREE.CylinderGeometry(0.1, 1.2, 12, 16);
+        vBitGeo.rotateX(Math.PI); // توجيه الطرف المدبب للأسفل
+        const vBitMat = new THREE.MeshStandardMaterial({ color: 0x7f8c8d, metalness: 0.95, roughness: 0.1 });
+        const vBit = new THREE.Mesh(vBitGeo, vBitMat);
+        vBit.position.set(0, -85 + 34, 42); 
+        spindleGroup.add(vBit);
+
+        // --- 9. محركات الخطوة (Stepper Motors NEMA 17) ---
+        const motorMat = new THREE.MeshStandardMaterial({ color: 0x1e272e, roughness: 0.7 });
+        const motorCapMat = new THREE.MeshStandardMaterial({ color: 0xbdc3c7, metalness: 0.8 });
+
+        function createNema17() {
+            const motorGroup = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(32, 32, 32), motorMat);
+            motorGroup.add(body);
+            const cap = new THREE.Mesh(new THREE.CylinderGeometry(8, 8, 4, 16), motorCapMat);
+            cap.rotateX(Math.PI/2);
+            cap.position.z = 16;
+            motorGroup.add(cap);
+            return motorGroup;
+        }
+
+        const motorY = createNema17();
+        motorY.position.set(0, -80 + 15, -D/2 + 15);
+        motorY.rotation.x = Math.PI / 2;
+        scene.add(motorY);
+
+        const motorX = createNema17();
+        motorX.position.set(-W/2 + 25, -85 + 70, 0);
+        motorX.rotation.y = -Math.PI / 2;
+        gantryGroup.add(motorX);
+
+        // --- 10. مجموعة خطوط الرسم والقشط الديناميكية المضمونة (Dynamic Toolpath) ---
+        const carvedLinesGroup = new THREE.Group();
+        scene.add(carvedLinesGroup);
+
+function drawCarvedSegment(x1, z1, x2, z2) {
+    const material = new THREE.LineBasicMaterial({ 
+        color: 0x7f8c8d, // لون البلاستيك الرمادي العازل (الظاهر بعد قشط المسار الأخضر)
+        linewidth: 3 
+    });
+    const points = [];
+    // لوح النحاس الأخضر يقع بالضبط عند منسوب الارتفاع المطلق Y = -73.2
+    // نضع الخط عند Y = -73.1 لمنع تداخل الأسطح (Z-Fighting) ليظهر المسار الرمادي بوضوح تام
+    const carveY = -73.1; 
+    points.push(new THREE.Vector3(x1, carveY, z1));
+    points.push(new THREE.Vector3(x2, carveY, z2));
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const line = new THREE.Line(geometry, material);
+    carvedLinesGroup.add(line);
+}
+
+function clearAllCarvedTracks() {
+    // تفريغ المسارات وإعادة تغطية اللوح بالكامل بالنحاس الأخضر
+    while(carvedLinesGroup.children.length > 0){ 
+        const obj = carvedLinesGroup.children[0];
+        carvedLinesGroup.remove(obj); 
+    }
+    currentSegment = 0;
+    isSimulating = false;
+    lastTrackedX = null;
+    lastTrackedZ = null;
+    document.getElementById('simulate-text').innerText = "بدء عملية القشط بالأجنة";
+    document.getElementById('btn-simulate').className = "w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 px-4 rounded-lg transition text-sm flex items-center justify-center gap-2";
+    document.getElementById('spindle-speed').innerText = "0 RPM";
+} document.getElementById('spindle-speed').innerText = "0 RPM";
+        
+
+        // --- 11. معايرة وفحص السطح وتلامس الأجنة تلقائياً (Z-Probe Mode) ---
+        function startZProbingCycle() {
+            if (isSimulating) return;
+            isProbing = true;
+            probeStep = 1; // التوجه السريع فوق المسبار
+            document.getElementById('probe-status').innerText = "جاري التحرك نحو المسبار...";
+            document.getElementById('probe-status').className = "px-2 py-0.5 rounded font-bold bg-amber-900/50 text-amber-200 animate-pulse";
+        }
+
+        // --- 12. حلقة التحديث المستمر للرسم والأنيميشن ---
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+
+    // الحصول على الإحداثيات المباشرة لحركة المكنة
+    const currentX = carriageGroup.position.x;
+    const currentZ = gantryGroup.position.z;
+    const currentY = spindleGroup.position.y;
+
+    // أ) تحديث دورة المعايرة والتماس Z-Probe
+    if (isProbing) {
+        const targetProbeX = 50;
+        const targetProbeZ = 35;
+
+        if (probeStep === 1) {
+            const diffX = targetProbeX - carriageGroup.position.x;
+            const diffZ = targetProbeZ - gantryGroup.position.z;
+            
+            carriageGroup.position.x += Math.sign(diffX) * Math.min(Math.abs(diffX), 2);
+            gantryGroup.position.z += Math.sign(diffZ) * Math.min(Math.abs(diffZ), 2);
+            
+            if (spindleGroup.position.y < 15) spindleGroup.position.y += 0.8;
+
+            if (Math.abs(diffX) < 0.1 && Math.abs(diffZ) < 0.1) {
+                probeStep = 2; // النزول التدريجي الهادئ
+                document.getElementById('probe-status').innerText = "تحسس التلامس الميكروني...";
+            }
+        } 
+        else if (probeStep === 2) {
+            spindleGroup.position.y -= 0.3;
+
+            // التلامس يتم عندما يهبط المغزل تحت المنسوب المطلق للمسبار
+            if (spindleGroup.position.y <= -2.0) { 
+                probeStep = 3;
+                document.getElementById('probe-status').innerText = "تم ملامسة النحاس! تم التصفير";
+                document.getElementById('probe-status').className = "px-2 py-0.5 rounded font-bold bg-emerald-950 text-emerald-300 border border-emerald-600";
+                topLight.intensity = 2.2; // وميض سريع للتأكيد
+            }
+        }
+        else if (probeStep === 3) {
+            topLight.intensity = Math.max(topLight.intensity - 0.05, 0.85);
+            if (spindleGroup.position.y < 15) {
+                spindleGroup.position.y += 0.8;
+            } else {
+                isProbing = false;
+                probeStep = 0;
+                setTimeout(() => {
+                    if (!isProbing) {
+                        document.getElementById('probe-status').innerText = "جاهز ومعاير";
+                        document.getElementById('probe-status').className = "px-2 py-0.5 rounded font-bold bg-zinc-900 text-emerald-400 border border-emerald-900/30";
+                    }
+                }, 2000);
+            }
+        }
+    }
+
+    // ب) تحديث عملية القشط النشطة وسحب المسارات الرمادية
+    if (isSimulating && !isProbing) {
+        document.getElementById('spindle-speed').innerText = "12,000 RPM";
+        vBit.rotation.y += 1.5; // دوران فائق السرعة لقشط النحاس بسلاسة
+
+        const currentCmd = activeGcodeProgram[currentSegment];
+        if (currentCmd) {
+            const deltaX = currentCmd.x - carriageGroup.position.x;
+            const deltaZ = currentCmd.z - gantryGroup.position.z;
+            const deltaY = currentCmd.y - spindleGroup.position.y;
+
+            const stepX = Math.sign(deltaX) * Math.min(Math.abs(deltaX), feedSpeedFactor * 50);
+            const stepZ = Math.sign(deltaZ) * Math.min(Math.abs(deltaZ), feedSpeedFactor * 50);
+            const stepY = Math.sign(deltaY) * Math.min(Math.abs(deltaY), feedSpeedFactor * 25);
+
+            carriageGroup.position.x += stepX;
+            gantryGroup.position.z += stepZ;
+            spindleGroup.position.y += stepY;
+
+            screwX.rotation.x += stepX * 0.2;
+            screwY.rotation.z += stepZ * 0.2;
+
+            // ج) رسم وتوثيق خطوط القشط الرمادية عند نزول الأجنة لعمق القطع الحقيقي (y <= -2.0)
+            if (currentCmd.type === 'G1' && spindleGroup.position.y <= -2.0) {
+                if (lastTrackedX !== null && lastTrackedZ !== null) {
+                    const dist = Math.sqrt(Math.pow(carriageGroup.position.x - lastTrackedX, 2) + Math.pow(gantryGroup.position.z - lastTrackedZ, 2));
+                    if (dist > 0.4) {
+                        drawCarvedSegment(lastTrackedX, lastTrackedZ, carriageGroup.position.x, gantryGroup.position.z);
+                        lastTrackedX = carriageGroup.position.x;
+                        lastTrackedZ = gantryGroup.position.z;
+                    }
+                } else {
+                    lastTrackedX = carriageGroup.position.x;
+                    lastTrackedZ = gantryGroup.position.z;
+                }
+            } else {
+                lastTrackedX = null; 
+                lastTrackedZ = null; 
+            }
+
+            // الانتقال للأمر البرمجي التالي
+            if (Math.abs(deltaX) < 0.1 && Math.abs(deltaZ) < 0.1 && Math.abs(deltaY) < 0.1) {
+                currentSegment++;
+                lastTrackedX = null; 
+                lastTrackedZ = null; 
+                if (currentSegment >= activeGcodeProgram.length) {
+                    isSimulating = false;
+                    document.getElementById('simulate-text').innerText = "إعادة تشغيل النقش";
+                    document.getElementById('btn-simulate').className = "w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 px-4 rounded-lg transition text-sm flex items-center justify-center gap-2";
+                    document.getElementById('spindle-speed').innerText = "0 RPM";
+                }
+            }
+        }
+    }
+
+    // تحديث نافذة قراءة الإحداثيات الرقمية للآلة
+    updateCoordinatesUI(carriageGroup.position.x, gantryGroup.position.z, spindleGroup.position.y);
+
+    renderer.render(scene, camera);
+}
+
+        function updateCoordinatesUI(x, z, tipY) {
+            const viewX = (x + 80).toFixed(2);
+            const viewY = (z + 50).toFixed(2);
+            const viewZ = (tipY <= -73.0) ? "-0.15" : "0.00";
+
+            document.getElementById('val-x').innerText = viewX;
+            document.getElementById('val-y').innerText = viewY;
+            document.getElementById('val-z').innerText = viewZ;
+        }
+
+        // --- 13. إدارة تبديل مسارات التقطيع التفاعلية ---
+        function updatePathButtonStyles(activeId) {
+            const buttons = [
+                { id: 'path-ic', text: '1. مسار الدائرة المتكاملة (IC Circuit)' },
+                { id: 'path-coil', text: '2. الملف المربع (Square Coil)' },
+                { id: 'path-zigzag', text: '3. شبكة الاختبار المتعرجة (Zigzag Grid)' }
+            ];
+
+            buttons.forEach(btn => {
+                const el = document.getElementById(btn.id);
+                if (btn.id === activeId) {
+                    el.className = "w-full bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-700/60 text-emerald-200 text-xs py-2.5 px-3 rounded-lg transition text-right flex justify-between items-center";
+                    el.querySelector('span:last-child').className = "text-[10px] font-bold bg-emerald-800 px-1.5 py-0.5 rounded text-white";
+                    el.querySelector('span:last-child').innerText = "نشط";
+                } else {
+                    el.className = "w-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs py-2.5 px-3 rounded-lg transition text-right flex justify-between items-center";
+                    el.querySelector('span:last-child').className = "text-[10px] font-bold bg-zinc-800 px-1.5 py-0.5 rounded text-zinc-400";
+                    el.querySelector('span:last-child').innerText = "خامل";
+                }
+            });
+        }
+
+        document.getElementById('path-ic').addEventListener('click', () => {
+            clearAllCarvedTracks();
+            activeGcodeProgram = pathIC;
+            updatePathButtonStyles('path-ic');
+        });
+
+        document.getElementById('path-coil').addEventListener('click', () => {
+            clearAllCarvedTracks();
+            activeGcodeProgram = pathCoil;
+            updatePathButtonStyles('path-coil');
+        });
+
+        document.getElementById('path-zigzag').addEventListener('click', () => {
+            clearAllCarvedTracks();
+            activeGcodeProgram = pathZigzag;
+            updatePathButtonStyles('path-zigzag');
+        });
+
+        // --- 14. أزرار التشغيل العامة ---
+        const simBtn = document.getElementById('btn-simulate');
+        simBtn.addEventListener('click', () => {
+            if (isProbing) return;
+            isSimulating = !isSimulating;
+            if (isSimulating) {
+                simBtn.className = "w-full bg-amber-600 hover:bg-amber-700 text-white font-medium py-2.5 px-4 rounded-lg transition duration-200 text-sm flex items-center justify-center gap-2";
+                document.getElementById('simulate-icon').innerText = "⏸";
+                document.getElementById('simulate-text').innerText = "إيقاف مؤقت للقشط";
+            } else {
+                simBtn.className = "w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5 px-4 rounded-lg transition duration-200 text-sm flex items-center justify-center gap-2";
+                document.getElementById('simulate-icon').innerText = "▶";
+                document.getElementById('simulate-text').innerText = "استئناف عملية القشط";
+                document.getElementById('spindle-speed').innerText = "0 RPM";
+            }
+        });
+
+        document.getElementById('btn-probe').addEventListener('click', startZProbingCycle);
+        document.getElementById('btn-clear-path').addEventListener('click', clearAllCarvedTracks);
+
+        const rotateBtn = document.getElementById('btn-autorotate');
+        rotateBtn.addEventListener('click', () => {
+            controls.autoRotate = !controls.autoRotate;
+            document.getElementById('autorotate-status').innerText = controls.autoRotate ? "مفعّل" : "ملغى";
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            camera.position.set(220, 180, 220);
+            controls.target.set(0, 0, 0);
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        // استدعاء حلقة الرندر في نهاية الملف بعد تحميل كافة المتغيرات والعناصر
+        animate();
+    </script>
+</body>
+</html>
